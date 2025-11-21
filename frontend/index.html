@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>ToDo - Lista zadań</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand__logo">TD</div>
+      <span>ToDo</span>
+    </div>
+    <nav class="nav-links">
+      <a href="./index.html">Zadania</a>
+      <a href="./login.html" id="login-link" style="display:none;">Logowanie</a>
+      <a href="./register.html" id="register-link" style="display:none;">Rejestracja</a>
+      <button class="btn-secondary" id="logout-btn" style="display:none;">Wyloguj</button>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h1 class="card__title">Twoja lista zadań</h1>
+      <p class="card__subtitle">Dodawaj zadania, odhaczaj wykonane, usuwaj niepotrzebne.</p>
+
+      <div id="flash" class="alert" role="status" aria-live="polite"></div>
+
+      <form id="add-form" class="todo__form" autocomplete="off">
+        <input type="text" id="title" placeholder="Wpisz nowe zadanie..." required />
+        <button class="btn-primary" type="submit">Dodaj</button>
+      </form>
+
+      <ul id="list" class="todo__list" aria-live="polite"></ul>
+
+      <p class="notice" id="empty" style="display:none;">Brak zadań – dodaj pierwsze powyżej.</p>
+    </section>
+  </main>
+
+<script>
+const API_BASE = "/api";
+
+const ui = {
+  list: document.getElementById("list"),
+  flash: document.getElementById("flash"),
+  empty: document.getElementById("empty"),
+  addForm: document.getElementById("add-form"),
+  titleInput: document.getElementById("title"),
+  logoutBtn: document.getElementById("logout-btn"),
+  loginLink: document.getElementById("login-link"),
+  registerLink: document.getElementById("register-link"),
+};
+
+
+function getCookie(name) {
+  const match = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+  return match ? decodeURIComponent(match.pop()) : null;
+}
+
+async function ensureCsrf() {
+  if (!getCookie("csrftoken")) {
+    await fetch(`${API_BASE}/csrf/`, { credentials: "include" });
+  }
+}
+
+function showFlash(message, type = "success") {
+  ui.flash.className =
+    "alert " + (type === "error" ? "alert--error" : "alert--success");
+  ui.flash.textContent = message;
+
+  setTimeout(() => {
+    ui.flash.className = "alert";
+  }, 2500);
+}
+
+
+function showLoggedOutState() {
+  ui.addForm.style.display = "none";
+  ui.logoutBtn.style.display = "none";
+  ui.loginLink.style.display = "inline";
+  ui.registerLink.style.display = "inline";
+
+  ui.list.innerHTML = "";
+  ui.empty.style.display = "block";
+  ui.empty.textContent = "Aby zobaczyć zadania, zaloguj się.";
+}
+
+function showLoggedInState() {
+  ui.addForm.style.display = "grid";
+  ui.logoutBtn.style.display = "inline-flex";
+  ui.loginLink.style.display = "none";
+  ui.registerLink.style.display = "none";
+}
+
+
+async function toggleTask(taskId) {
+  try {
+    await ensureCsrf();
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/toggle/`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRFToken": getCookie("csrftoken") },
+    });
+
+    if (!res.ok) {
+      showFlash("Nie udało się zmienić statusu.", "error");
+      return;
+    }
+
+    await loadTasks();
+  } catch {
+    showFlash("Błąd sieci przy przełączaniu.", "error");
+  }
+}
+
+async function deleteTask(taskId) {
+  const shouldDelete = confirm("Na pewno usunąć to zadanie?");
+  if (!shouldDelete) return;
+
+  try {
+    await ensureCsrf();
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "X-CSRFToken": getCookie("csrftoken") },
+    });
+
+    if (!res.ok) {
+      showFlash("Nie udało się usunąć zadania.", "error");
+      return;
+    }
+
+    showFlash("Usunięto zadanie.");
+    await loadTasks();
+  } catch {
+    showFlash("Błąd sieci przy usuwaniu.", "error");
+  }
+}
+
+async function addTask(title) {
+  try {
+    await ensureCsrf();
+    const res = await fetch(`${API_BASE}/tasks/`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ title }),
+    });
+
+    if (!res.ok) {
+      showFlash("Nie udało się dodać zadania.", "error");
+      return;
+    }
+
+    ui.titleInput.value = "";
+    await loadTasks();
+  } catch {
+    showFlash("Błąd sieci przy dodawaniu.", "error");
+  }
+}
+
+
+function createTaskElement(task) {
+  const li = document.createElement("li");
+  li.className = "todo-item" + (task.done ? " todo-item--done" : "");
+  li.innerHTML = `
+    <span class="todo-item__title">${task.title}</span>
+    <div class="todo-item__actions">
+      <span class="chip">${task.done ? "Ukończone" : "W trakcie"}</span>
+      <button class="btn-secondary" data-action="toggle">Zmień status</button>
+      <button class="btn-danger" data-action="delete">Usuń</button>
+    </div>
+  `;
+
+  const toggleBtn = li.querySelector('[data-action="toggle"]');
+  const deleteBtn = li.querySelector('[data-action="delete"]');
+
+  toggleBtn.addEventListener("click", () => toggleTask(task.id));
+  deleteBtn.addEventListener("click", () => deleteTask(task.id));
+
+  return li;
+}
+
+function renderTasks(tasks) {
+  ui.list.innerHTML = "";
+
+  if (!tasks || tasks.length === 0) {
+    ui.empty.style.display = "block";
+    ui.empty.textContent = "Brak zadań – dodaj pierwsze powyżej.";
+    return;
+  }
+
+  ui.empty.style.display = "none";
+
+  tasks.forEach((task) => {
+    ui.list.appendChild(createTaskElement(task));
+  });
+}
+
+
+async function loadTasks() {
+  try {
+    await ensureCsrf();
+    const res = await fetch(`${API_BASE}/tasks/`, {
+      credentials: "include",
+    });
+
+    // Brak uprawnień → traktujemy jako niezalogowanego
+    if (res.status === 401 || res.status === 403) {
+      showLoggedOutState();
+      return;
+    }
+
+    const data = await res.json();
+
+    showLoggedInState();
+    const tasks = Array.isArray(data) ? data : data.results || [];
+    renderTasks(tasks);
+  } catch {
+    showFlash("Nie udało się pobrać listy zadań.", "error");
+  }
+}
+
+
+ui.addForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const title = ui.titleInput.value.trim();
+  if (!title) return;
+  addTask(title);
+});
+
+ui.logoutBtn.addEventListener("click", async () => {
+  try {
+    await ensureCsrf();
+    const res = await fetch(`${API_BASE}/logout/`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRFToken": getCookie("csrftoken") },
+    });
+
+    if (!res.ok) {
+      showFlash("Wylogowanie nie powiodło się.", "error");
+      return;
+    }
+
+    window.location.href = "./login.html";
+  } catch {
+    showFlash("Błąd sieci przy wylogowaniu.", "error");
+  }
+});
+
+loadTasks();
+</script>
+
+</body>
+</html>

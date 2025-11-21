@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>ToDo - Logowanie</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand__logo">TD</div>
+      <span>ToDo</span>
+    </div>
+    <nav class="nav-links">
+      <a href="./index.html">Zadania</a>
+      <a href="./register.html">Rejestracja</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="card" style="max-width: 560px; margin-inline: auto;">
+      <h1 class="card__title">Logowanie</h1>
+      <p class="card__subtitle">Wróć do swoich zadań.</p>
+
+      <div id="flash" class="alert" role="status" aria-live="polite"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div>
+          <label for="email">Adres e-mail</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" required />
+        </div>
+        <div>
+          <label for="password">Hasło</label>
+          <input id="password" name="password" type="password" placeholder="••••••••" required />
+        </div>
+        <button class="btn-primary" type="submit">Zaloguj się</button>
+      </form>
+
+      <div class="auth-links">
+        <span>Nie masz konta?</span> <a href="./register.html">Zarejestruj się</a>
+      </div>
+    </section>
+  </main>
+
+<script>
+const API_BASE = "/api";
+
+
+function getCookie(name) {
+  const match = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+  return match ? decodeURIComponent(match.pop()) : null;
+}
+
+async function ensureCsrf() {
+  if (!getCookie("csrftoken")) {
+    await fetch(`${API_BASE}/csrf/`, { credentials: "include" });
+  }
+}
+
+function showFlash(message, type = "error") {
+  const el = document.getElementById("flash");
+  el.className =
+    "alert " + (type === "error" ? "alert--error" : "alert--success");
+  el.textContent = message;
+}
+
+function mapLoginError(status, payload) {
+  const code =
+    (payload && (payload.error || payload.code || payload.detail)) || null;
+
+  if (status === 400 || status === 401) {
+    if (code === "invalid_credentials") {
+      return "Nieprawidłowy e-mail lub hasło.";
+    }
+    if (code === "user_not_found") {
+      return "Użytkownik o podanym adresie e-mail nie istnieje.";
+    }
+    if (code === "inactive_user") {
+      return "Konto jest nieaktywne. Skontaktuj się z administratorem.";
+    }
+    return "Nie udało się zalogować. Sprawdź dane i spróbuj ponownie.";
+  }
+
+  if (status >= 500) {
+    return "Wystąpił błąd po stronie serwera. Spróbuj ponownie za chwilę.";
+  }
+
+  return "Coś poszło nie tak podczas logowania.";
+}
+
+
+async function login(email, password) {
+  try {
+    await ensureCsrf();
+
+    const res = await fetch(`${API_BASE}/login/`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      let payload = null;
+
+      try {
+        payload = await res.json();
+      } catch (e) {
+        payload = null;
+      }
+
+      const message = mapLoginError(res.status, payload);
+      showFlash(message, "error");
+      return;
+    }
+
+    window.location.href = "./index.html";
+  } catch {
+    showFlash("Błąd połączenia z serwerem. Sprawdź internet i spróbuj ponownie.", "error");
+  }
+}
+
+document.getElementById("login-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    showFlash("Uzupełnij e-mail i hasło.", "error");
+    return;
+  }
+
+  login(email, password);
+});
+
+
+(async () => {
+  try {
+    await ensureCsrf();
+    const ping = await fetch(`${API_BASE}/tasks/`, { credentials: "include" });
+    if (ping.ok) {
+      window.location.replace("./index.html");
+    }
+  } catch {
+  }
+})();
+</script>
+
+
+</body>
+</html>

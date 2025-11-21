@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>ToDo - Rejestracja</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand__logo">TD</div>
+      <span>ToDo</span>
+    </div>
+    <nav class="nav-links">
+      <a href="./index.html">Zadania</a>
+      <a href="./login.html">Logowanie</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="card" style="max-width: 640px; margin-inline: auto;">
+      <h1 class="card__title">Załóż konto</h1>
+      <p class="card__subtitle">Zacznij zarządzać swoimi zadaniami.</p>
+
+      <div id="flash" class="alert" role="status" aria-live="polite"></div>
+
+      <form id="register-form" autocomplete="on">
+        <div>
+          <label for="name">Imię</label>
+          <input id="name" name="name" type="text" placeholder="Twoje imię" required />
+        </div>
+        <div>
+          <label for="email">Adres e-mail</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" required />
+        </div>
+        <div>
+          <label for="password">Hasło</label>
+          <input id="password" name="password" type="password" placeholder="min. 8 znaków" required />
+        </div>
+        <div>
+          <label for="confirm">Powtórz hasło</label>
+          <input id="confirm" name="confirm" type="password" placeholder="powtórz hasło" required />
+        </div>
+        <button class="btn-primary" type="submit">Utwórz konto</button>
+      </form>
+
+      <div class="auth-links">
+        <span>Masz już konto?</span> <a href="./login.html">Zaloguj się</a>
+      </div>
+    </section>
+  </main>
+<script>
+const API_BASE = "/api";
+
+function getCookie(name) {
+  const match = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+  return match ? decodeURIComponent(match.pop()) : null;
+}
+
+async function ensureCsrf() {
+  if (!getCookie("csrftoken")) {
+    await fetch(`${API_BASE}/csrf/`, { credentials: "include" });
+  }
+}
+
+function showFlash(message, type = "error") {
+  const el = document.getElementById("flash");
+  el.className =
+    "alert " + (type === "error" ? "alert--error" : "alert--success");
+  el.textContent = message;
+}
+
+
+async function registerUser({ name, email, password, confirm }) {
+  try {
+    await ensureCsrf();
+
+    const res = await fetch(`${API_BASE}/register/`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ name, email, password, confirm }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      showFlash(text || "Rejestracja nie powiodła się.", "error");
+      return;
+    }
+
+    showFlash("Konto utworzone - możesz się zalogować.", "success");
+    setTimeout(() => {
+      window.location.href = "./login.html";
+    }, 700);
+  } catch {
+    showFlash("Błąd sieci — spróbuj ponownie.", "error");
+  }
+}
+
+document.getElementById("register-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const confirm = document.getElementById("confirm").value;
+
+  if (!name || !email || !password || !confirm) {
+    showFlash("Uzupełnij wszystkie pola.", "error");
+    return;
+  }
+
+  if (password !== confirm) {
+    showFlash("Hasła nie są identyczne.", "error");
+    return;
+  }
+
+  registerUser({ name, email, password, confirm });
+});
+
+
+(async () => {
+  try {
+    await ensureCsrf();
+    const ping = await fetch(`${API_BASE}/tasks/`, { credentials: "include" });
+    if (ping.ok) {
+      window.location.replace("./index.html");
+    }
+  } catch {
+  }
+})();
+</script>
+
+</body>
+</html>
