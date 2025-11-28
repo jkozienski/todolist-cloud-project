@@ -1,0 +1,40 @@
+<form id="registerForm">
+  <input name="name" required />
+  <input name="email" type="email" required />
+  <input name="password" type="password" required />
+  <input name="confirm" type="password" required />
+  <button type="submit">Zarejestruj</button>
+</form>
+
+<script>
+function getCookie(name){
+  return document.cookie.split('; ').find(row=>row.startsWith(name+'='))?.split('=')[1];
+}
+
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+
+  // 1) pobierz CSRF (raz przed pierwszym POST-em)
+  await fetch('/api/csrf/', { credentials: 'include' });
+
+  // 2) POST JSON
+  const res = await fetch('/api/register/', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify(data),
+  });
+
+  const j = await res.json();
+  if (res.ok && j.ok) {
+    alert('Zarejestrowano — zaloguj się');
+    location.href = '/login.html';
+  } else {
+    alert(j.error || 'Błąd rejestracji');
+  }
+});
+</script>
