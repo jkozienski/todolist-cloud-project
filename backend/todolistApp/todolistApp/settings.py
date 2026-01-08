@@ -104,14 +104,6 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "INFO"},
 }
 
-#SQLITE until working POSTGRESQL
-#DATABASES = {
-#    "default": {
-#        "ENGINE": "django.db.backends.sqlite3",
-#        "NAME": "/srv/todolistapp/src/db.sqlite3",
-#        "OPTIONS": {"timeout": 20},  # dłuższy timeout na lock
-#    }
-#}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
