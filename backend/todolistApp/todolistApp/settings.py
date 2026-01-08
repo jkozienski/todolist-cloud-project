@@ -20,6 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
+DATABASE_URL = os.getenv('DATABASE_URL')
+
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
@@ -115,10 +117,7 @@ LOGGING = {
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    "default": dj_database_url.parse(
-        os.getenv("DATABASE_URL", f"sqlite:////srv/todolistapp/src/db.sqlite3"),
-        conn_max_age=600
-    )
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
 }
 
 # Password validation
